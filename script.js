@@ -1,50 +1,27 @@
-const link = "http://api.openweathermap.org/data/2.5/weather?APPID=e01c17a3b1d66c986e1b1a2f8fdf382f&lang=ru&units=metric"
+const link = "http://api.openweathermap.org/data/2.5/weather?APPID=e01c17a3b1d66c986e1b1a2f8fdf382f&lang=ru&units=metric";
 const root = document.getElementById("root");
 const popup = document.getElementById("popup");
 const textInput = document.getElementById("text-input");
 const form = document.getElementById("form");
+const firstQuery = "&q=Екатеринбург";
 const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
 const timeOptions = { hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false };
 
-let store = {
-  city: "Екатеринбург",
-  lat: 56.8575,
-  lon: 60.6125,
-  datetime: {ld: {}, lt: {}, isd: "yes"},
-  descriptions: {},
-  temperature: 0,
-  properties: {
-    cloudcover: {},
-    humidity: {},
-    windSpeed: {},
-    pressure: {},
-    visibility: {},
-  },
+let store = {city: (firstQuery.split("="))[1], lat: 56.8575, lon: 60.6125,
+  datetime: {ld: {}, lt: {}, isd: "yes"}, descriptions: {}, temperature: 0,
+  properties: {cloudcover: {}, humidity: {}, windSpeed: {}, pressure: {},visibility: {}},
 };
 
 const fetchData = async () => {
   try {
-    const query = localStorage.getItem("query") || "Екатеринбург";
-    const result = await fetch(`${link}${query}`);
-    const data = await result.json();  
-    const {
-      base,
-      clouds: {all: cloudcover},
-      coord: {lat, lon},
-      main: {temp: temperature, pressure, humidity},
-      name: city,
-      sys: {sunrise, sunset},
-      timezone,
-      visibility,
-      weather,
-      wind: {deg: winddirection, speed: windspeed}
-    } = data;
+    const query = localStorage.getItem("query") || firstQuery;
+    const data = await fetch(`${link}${query}`).then(res => res.json());  
+    const {base, clouds: {all: cloudcover}, coord: {lat, lon},
+      main: {temp: temperature, pressure, humidity}, name: city,
+      sys: {sunrise, sunset}, timezone, visibility, weather,
+      wind: {deg: winddirection, speed: windspeed}} = data;        
     const dt = getdatetime(timezone, sunrise, sunset);
-    store = {
-      ...store,
-      city,
-      lat,
-      lon,
+    store = {...store, city, lat, lon, 
       datetime: {ld: `${dt.ld}`, lt: `${dt.lt}`, isd: `${dt.isd}`},
       temperature: `${(temperature).toFixed(1)}`,
       descriptions: {main: `${weather[0].main}`, description: `${weather[0].description}`},
@@ -76,29 +53,28 @@ const fetchData = async () => {
         },
       },
     };
-    console.log(store);
     store.city = (store.city == '') ? 'Неизвестно': store.city;
     renderComponent();
   } catch (err) {
-    console.log('Что-то пошло не так:')
-    console.log(err);
+    localStorage.clear();
+    document.getElementById("text-input").value = "Запрос отклонен. Попробуйте снова"; 
+    togglePopupClass();
   }
 };
 
 const getdatetime = (tz, sr, ss) => {
-  let mydate=new Date();
-  mydate.setSeconds(mydate.getSeconds()+mydate.getTimezoneOffset()*60+tz);
-  let localdate = new Intl.DateTimeFormat('ru-RU', dateOptions
-).format(mydate);
-  let localtime = (new Intl.DateTimeFormat('ru-RU', timeOptions).format(mydate));
-  let ls = mydate.getTime()/1000-tz+18000;
-  let isday = ((ls > sr) && (ls < ss))? "yes": "no";
-  return {ld: localdate, lt: localtime, isd: isday};
+  let mydate = new Date();
+  let mytz = -mydate.getTimezoneOffset()*60;
+  let date=new Date(mydate.getTime()+(tz-mytz)*1000);
+  return {
+    ld: new Intl.DateTimeFormat('ru-RU', dateOptions).format(date),
+    lt: new Intl.DateTimeFormat('ru-RU', timeOptions).format(date),
+    isd: ((date > new Date((sr+tz-mytz)*1000)) &&
+      (date < new Date((ss+tz-mytz)*1000)))? "yes": "no"};
 };
 
 const getImage = (description, theday) => {
   const value = description.toLowerCase();
-
   switch (value) {
     case "partly cloudy":
       return "partly.png";
@@ -149,8 +125,8 @@ const markup = () => {
                 <div class="description">${descriptions.description}</div>
               </div>
               <div class="top-right">
+                <div class="city-info__subtitle">Время в регионе: ${datetime.lt}</div>
                 <div class="city-info__subtitle">${datetime.ld}</div>
-                <div class="city-info__subtitle">Местное время: ${datetime.lt}</div>
                 <div class="city-info__title">${temperature} °С</div>
               </div>
             </div>
